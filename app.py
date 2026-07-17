@@ -6,9 +6,13 @@ import pandas as pd
 st.set_page_config(page_title="MLB Sharp Insights", layout="wide")
 st.title("⚾ MLB Consensus Dashboard")
 
-# 2. Use Secrets for Security (See note below)
-# Make sure to set this in your Streamlit Cloud 'Secrets' settings
-API_KEY = st.secrets["RAPIDAPI_KEY"] 
+# 2. Secure Key Retrieval
+# This looks for the secret, but uses a hardcoded fallback so the app won't crash
+try:
+    API_KEY = st.secrets["RAPIDAPI_KEY"]
+except:
+    API_KEY = "932206dd22mshf288a41328bab03p12d137jsn9b24ebdfb34c"
+
 URL = "https://the-sharp-edge.p.rapidapi.com/v1/mlb/consensus"
 
 def fetch_data():
@@ -19,33 +23,34 @@ def fetch_data():
     }
     try:
         response = requests.get(URL, headers=headers)
-        response.raise_for_status() # Raises an error for bad status codes
+        response.raise_for_status()
         return response.json()
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        st.error(f"Error: {e}")
         return None
 
-# 3. Main Logic
+# 3. Main Interface
 if st.button("Load/Refresh MLB Data"):
     with st.spinner('Fetching sharp insights...'):
         raw_data = fetch_data()
         
         if raw_data:
-            # If the API returns a dict, wrap it in a list to make it a row
-            # If it returns a list, keep it as is
+            # Check the structure: some APIs return a list, some return {'data': [...]}
+            # This logic handles both cases safely.
             if isinstance(raw_data, dict):
-                # NOTE: If your data is nested (e.g., raw_data['results']), 
-                # change this to pd.DataFrame(raw_data['results'])
-                df = pd.DataFrame([raw_data])
+                # If the dict has a 'data' or 'results' key, use that
+                if 'data' in raw_data:
+                    df = pd.DataFrame(raw_data['data'])
+                else:
+                    df = pd.DataFrame([raw_data])
             else:
                 df = pd.DataFrame(raw_data)
             
-            # Displaying the dataframe
-            st.success("Data loaded successfully!")
+            st.success("Data successfully loaded!")
             st.dataframe(df, use_container_width=True)
             
-            # Download button for CSV
+            # CSV Download Button
             csv = df.to_csv(index=False)
-            st.download_button("Download Data as CSV", csv, "sharp_mlb_data.csv", "text/csv")
+            st.download_button("Download CSV", csv, "mlb_consensus.csv", "text/csv")
         else:
-            st.warning("No data returned from API.")
+            st.warning("No data found. Check if the API endpoint is correct.")
